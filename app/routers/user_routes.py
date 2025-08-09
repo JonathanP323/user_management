@@ -193,14 +193,21 @@ async def list_users(
         links=pagination_links  # Ensure you have appropriate logic to create these links
     )
 
-
+# router.post register
 @router.post("/register/", response_model=UserResponse, tags=["Login and Registration"])
-async def register(user_data: UserCreate, session: AsyncSession = Depends(get_db), email_service: EmailService = Depends(get_email_service)):
-    user = await UserService.register_user(session, user_data.model_dump(), email_service)
-    if user:
+async def register(
+    user_data: UserCreate,
+    session: AsyncSession = Depends(get_db),
+    email_service: EmailService = Depends(get_email_service),
+):
+    try:
+        user = await UserService.register_user(session, user_data.model_dump(), email_service)
         return user
-    raise HTTPException(status_code=400, detail="Email already exists")
+    except ValueError as ve:
+        # e.g., duplicate email or other input problems
+        raise HTTPException(status_code=400, detail=str(ve))
 
+# router.post login
 @router.post("/login/", response_model=TokenResponse, tags=["Login and Registration"])
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), session: AsyncSession = Depends(get_db)):
     try:
