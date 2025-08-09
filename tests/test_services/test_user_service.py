@@ -21,14 +21,17 @@ async def test_create_user_with_valid_data(db_session, email_service):
     assert user.email == user_data["email"]
 
 # Test creating a user with invalid data
+import pytest
+
 async def test_create_user_with_invalid_data(db_session, email_service):
     user_data = {
-        "nickname": "",  # Invalid nickname
-        "email": "invalidemail",  # Invalid email
-        "password": "short",  # Invalid password
+        "nickname": "",              # invalid
+        "email": "invalidemail",     # invalid
+        "password": "short",         # invalid
     }
-    user = await UserService.create(db_session, user_data, email_service)
-    assert user is None
+    with pytest.raises(ValueError):
+        await UserService.create(db_session, user_data, email_service)
+
 
 # Test fetching a user by ID when the user exists
 async def test_get_by_id_user_exists(db_session, user):
