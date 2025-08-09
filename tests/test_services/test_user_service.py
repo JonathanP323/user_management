@@ -128,9 +128,13 @@ async def test_login_user_successful(db_session, verified_user):
     assert logged_in_user is not None
 
 # Test user login with incorrect email
-async def test_login_user_incorrect_email(db_session):
-    user = await UserService.login_user(db_session, "nonexistentuser@noway.com", "Password123!")
-    assert user is None
+import pytest
+
+async def test_login_user_incorrect_email(db_session, user):
+    with pytest.raises(ValueError):
+        await UserService.login_user(
+            db_session, "wrongemail@example.com", "ValidPassword123!"
+        )
 
 # Test user login with incorrect password
 async def test_login_user_incorrect_password(db_session, user):
