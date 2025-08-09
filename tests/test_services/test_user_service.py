@@ -137,9 +137,11 @@ async def test_login_user_incorrect_email(db_session, user):
         )
 
 # Test user login with incorrect password
+import pytest
+
 async def test_login_user_incorrect_password(db_session, user):
-    user = await UserService.login_user(db_session, user.email, "IncorrectPassword!")
-    assert user is None
+    with pytest.raises(ValueError):
+        await UserService.login_user(db_session, user.email, "IncorrectPassword!")
 
 # Test account lock after maximum failed login attempts
 async def test_account_lock_after_failed_logins(db_session, verified_user):
