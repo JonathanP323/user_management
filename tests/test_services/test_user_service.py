@@ -143,6 +143,14 @@ async def test_login_user_incorrect_password(db_session, user):
     with pytest.raises(ValueError):
         await UserService.login_user(db_session, user.email, "IncorrectPassword!")
 
+# Test user login when the email is not verified
+import pytest
+
+async def test_login_unverified_user(db_session, unverified_user):
+    # user exists but email_verified=False → should raise
+    with pytest.raises(ValueError):
+        await UserService.login_user(db_session, unverified_user.email, "MySuperPassword$1234")
+
 # Test account lock after maximum failed login attempts
 async def test_account_lock_after_failed_logins(db_session, verified_user):
     max_login_attempts = get_settings().max_login_attempts
