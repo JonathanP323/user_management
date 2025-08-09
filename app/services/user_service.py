@@ -33,7 +33,16 @@ class UserService:
 
     @classmethod
     async def _fetch_user(cls, session: AsyncSession, **filters) -> Optional[User]:
-        query = select(User).filter_by(**filters)
+        query = select(User)
+
+        # Special case for email filter
+        if "email" in filters:
+            email = filters.pop("email")
+            query = query.where(func.lower(User.email) == email.lower())
+
+        for key, value in filters.items():
+            query = query.where(getattr(User, key) == value)
+
         result = await cls._execute_query(session, query)
         return result.scalars().first() if result else None
 
@@ -53,32 +62,52 @@ class UserService:
     async def create(cls, session: AsyncSession, user_data: Dict[str, str], email_service: EmailService) -> Optional[User]:
         try:
             validated_data = UserCreate(**user_data).model_dump()
-            existing_user = await cls.get_by_email(session, validated_data['email'])
-            if existing_user:
-                logger.error("User with given email already exists.")
-                return None
-            validated_data['hashed_password'] = hash_password(validated_data.pop('password'))
+            email = validated_data['email']
+            password = validated_data.pop('password')
+            nickname = validated_data.get('nickname')
+
+            # Check if email already exists
+            if await cls.get_by_email(session, email):
+                raise ValueError("Email already exists.")
+
+            # Handle nickname conflicts
+            if nickname:
+                if await cls.get_by_nickname(session, nickname):
+                    raise ValueError("Nickname already exists.")
+            else:
+                nickname = generate_nickname()
+                while await cls.get_by_nickname(session, nickname):
+                    nickname = generate_nickname()
+
+            # Create new user
+            validated_data['hashed_password'] = hash_password(password)
             new_user = User(**validated_data)
-            new_nickname = generate_nickname()
-            while await cls.get_by_nickname(session, new_nickname):
-                new_nickname = generate_nickname()
-            new_user.nickname = new_nickname
-            logger.info(f"User Role: {new_user.role}")
+            new_user.nickname = nickname
+
             user_count = await cls.count(session)
-            new_user.role = UserRole.ADMIN if user_count == 0 else UserRole.ANONYMOUS            
+            new_user.role = UserRole.ADMIN if user_count == 0 else UserRole.ANONYMOUS
+
             if new_user.role == UserRole.ADMIN:
                 new_user.email_verified = True
-
             else:
                 new_user.verification_token = generate_verification_token()
-                await email_service.send_verification_email(new_user)
 
             session.add(new_user)
             await session.commit()
+            await session.refresh(new_user)
+
+            if new_user.role != UserRole.ADMIN:
+                await email_service.send_verification_email(new_user)
+
             return new_user
+
         except ValidationError as e:
             logger.error(f"Validation error during user creation: {e}")
-            return None
+            raise ValueError("Invalid input data.")
+        except ValueError as ve:
+            logger.error(str(ve))
+            raise ve
+
 
     @classmethod
     async def update(cls, session: AsyncSession, user_id: UUID, update_data: Dict[str, str]) -> Optional[User]:
@@ -124,26 +153,31 @@ class UserService:
     
 
     @classmethod
-    async def login_user(cls, session: AsyncSession, email: str, password: str) -> Optional[User]:
+    async def login_user(cls, session: AsyncSession, email: str, password: str) -> User:
         user = await cls.get_by_email(session, email)
-        if user:
-            if user.email_verified is False:
-                return None
-            if user.is_locked:
-                return None
-            if verify_password(password, user.hashed_password):
-                user.failed_login_attempts = 0
-                user.last_login_at = datetime.now(timezone.utc)
-                session.add(user)
-                await session.commit()
-                return user
-            else:
-                user.failed_login_attempts += 1
-                if user.failed_login_attempts >= settings.max_login_attempts:
-                    user.is_locked = True
-                session.add(user)
-                await session.commit()
-        return None
+        if not user:
+            raise ValueError("Incorrect email or password.")
+
+        if not user.email_verified:
+            raise ValueError("Email not verified.")
+
+        if user.is_locked:
+            raise ValueError("Account is locked due to too many failed login attempts.")
+
+        if not verify_password(password, user.hashed_password):
+            user.failed_login_attempts += 1
+            if user.failed_login_attempts >= settings.max_login_attempts:
+                user.is_locked = True
+            session.add(user)
+            await session.commit()
+            raise ValueError("Incorrect email or password.")
+
+        # Successful login
+        user.failed_login_attempts = 0
+        user.last_login_at = datetime.now(timezone.utc)
+        session.add(user)
+        await session.commit()
+        return user
 
     @classmethod
     async def is_account_locked(cls, session: AsyncSession, email: str) -> bool:
