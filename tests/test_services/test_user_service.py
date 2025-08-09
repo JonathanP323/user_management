@@ -152,13 +152,19 @@ async def test_login_unverified_user(db_session, unverified_user):
         await UserService.login_user(db_session, unverified_user.email, "MySuperPassword$1234")
 
 # Test account lock after maximum failed login attempts
+import pytest
+
 async def test_account_lock_after_failed_logins(db_session, verified_user):
     max_login_attempts = get_settings().max_login_attempts
+
+    # Make max_login_attempts wrong-password attempts
     for _ in range(max_login_attempts):
-        await UserService.login_user(db_session, verified_user.email, "wrongpassword")
-    
+        with pytest.raises(ValueError):
+            await UserService.login_user(db_session, verified_user.email, "wrongpassword")
+
+    # After the loop, the account should be locked
     is_locked = await UserService.is_account_locked(db_session, verified_user.email)
-    assert is_locked, "The account should be locked after the maximum number of failed login attempts."
+    assert is_locked is True
 
 # Test resetting a user's password
 async def test_reset_password(db_session, user):
