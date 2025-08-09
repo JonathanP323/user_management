@@ -161,3 +161,21 @@ async def test_unlock_user_account(db_session, locked_user):
     assert unlocked, "The account should be unlocked"
     refreshed_user = await UserService.get_by_id(db_session, locked_user.id)
     assert not refreshed_user.is_locked, "The user should no longer be locked"
+
+# Test that the very first created user automatically becomes ADMIN and is verified
+async def test_first_user_becomes_admin_and_is_verified(db_session, email_service):
+    user_data = {
+        "nickname": generate_nickname(),
+        "email": "first_admin@example.com",
+        "password": "AdminPass123!",
+        # Pass a role because UserCreate requires it; pick a non-admin so we can
+        # prove the service overrides it for the first user.
+        "role": UserRole.ANONYMOUS.name
+    }
+
+    user = await UserService.create(db_session, user_data, email_service)
+
+    assert user is not None
+    assert user.role == UserRole.ADMIN
+    assert user.email_verified is True
+
