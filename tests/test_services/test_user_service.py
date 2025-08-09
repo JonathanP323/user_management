@@ -108,13 +108,15 @@ async def test_register_user_with_valid_data(db_session, email_service):
     assert user.email == user_data["email"]
 
 # Test attempting to register a user with invalid data
+import pytest  
+
 async def test_register_user_with_invalid_data(db_session, email_service):
     user_data = {
-        "email": "registerinvalidemail",  # Invalid email
-        "password": "short",  # Invalid password
+        "email": "registerinvalidemail",  # invalid email
+        "password": "short",              # invalid password
     }
-    user = await UserService.register_user(db_session, user_data, email_service)
-    assert user is None
+    with pytest.raises(ValueError):
+        await UserService.register_user(db_session, user_data, email_service)
 
 # Test successful user login
 async def test_login_user_successful(db_session, verified_user):
