@@ -204,3 +204,24 @@ async def test_first_user_becomes_admin_and_is_verified(db_session, email_servic
     assert user.role == UserRole.ADMIN
     assert user.email_verified is True
 
+# Test that creating a user with duplicate email is rejected
+async def test_create_user_rejects_duplicate_email(db_session, email_service):
+    # Create the first user
+    user_data = {
+        "nickname": generate_nickname(),
+        "email": "dup_check@example.com",
+        "password": "ValidPassword123!",
+        "role": UserRole.ANONYMOUS.name,
+    }
+    first = await UserService.create(db_session, user_data, email_service)
+    assert first is not None
+
+    # Try to create another user with the same email -> should raise
+    dup_data = {
+        "nickname": generate_nickname(),
+        "email": "dup_check@example.com",
+        "password": "AnotherPass123!",
+        "role": UserRole.ANONYMOUS.name,
+    }
+    with pytest.raises(ValueError):
+        await UserService.create(db_session, dup_data, email_service)
