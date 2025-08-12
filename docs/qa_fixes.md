@@ -54,3 +54,19 @@ Status:
 - Verified via Swagger UI and curl.
 - Tracked in issue: #2
 main
+Problem: Newly registered users receive a verification link like 'http://localhost:8000/verify-email/None/', so verification fails. 
+Reproductions: 
+1. Register via 'POST /register'.
+2. Open Mailtrap and copy the verification link. 
+3. Link path contains 'None' instead of the user UUID. 
+Root causes: 
+'new_user.id' not populated when composing the email-email sent right after 'commit()' without refreshing the instance. 
+Fix: 
+Refresh the user after commit and before composing/sending the email:
+```python
+await db_session.commit()
+await db_session.refresh(new_user)          # <-- ensures new_user.id is set
+await email_service.send_verification_email(new_user)
+
+Verification: 
+Registered a new user; the email now contains the correct UUID and hitting /verify-email/<uuid> returns 200 (Email verified successfully"). 
