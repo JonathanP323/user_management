@@ -70,3 +70,24 @@ await email_service.send_verification_email(new_user)
 
 Verification: 
 Registered a new user; the email now contains the correct UUID and hitting /verify-email/<uuid> returns 200 (Email verified successfully"). 
+Problem:
+`login_user` returned `None` for failures (bad password, unverified email, locked account), giving the API no reason to report and resulting in poor UX.
+Reproduction
+1. Try login with wrong password.
+2. Try login with unverified email.
+3. Try login with a locked account.
+All cases return `None` without context.
+Fix: 
+Replace silent `return None` branches with explicit exceptions carrying clear messages, e.g.:
+```python
+if not verify_password(password, user.hashed_password):
+    raise ValueError("Incorrect email or password")
+if not user.email_verified:
+    raise ValueError("Email not verified")
+if user.is_locked:
+    raise ValueError("Account is locked")
+
+Verification:
+git add docs/qa_fixes.md
+Verification:
+Tested all the three scenarios in Swagger: responses now return accurate codes and messages 
