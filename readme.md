@@ -19,4 +19,7 @@
 
 ## New Testings
 
+[Testing 1](https://github.com/JonathanP323/user_management/blob/main/tests/test_services/test_user_service.py#L190-205)
+
+[Testing 2](https://github.com/JonathanP323/user_management/blob/main/tests/test_services/test_user_service.py#L207-227)
 
